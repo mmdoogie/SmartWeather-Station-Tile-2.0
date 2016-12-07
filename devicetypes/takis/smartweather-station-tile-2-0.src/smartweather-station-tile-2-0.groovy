@@ -22,7 +22,6 @@ metadata {
 		capability "Temperature Measurement"
 		capability "Relative Humidity Measurement"
 		capability "Sensor"
-        capability "Polling"
 
 		attribute "localSunrise", "string"
 		attribute "localSunset", "string"
@@ -83,6 +82,13 @@ metadata {
               options: [
                 "speed_mph":"Miles per Hour",
                 "speed_kph":"Kilometers per Hour"
+                ])
+	input (description: "How illuminance is derived",
+        title: "Illuminance", displayDuringSetup: false, type: "paragraph", element: "paragraph")
+              input("illum_calc", "enum", title: "Calc Method", required: false, 
+              options: [
+                "calc_time":"Estimate from Time/Weather",
+                "calc_solar":"Calculate from solar data"
                 ])
         input "weather", "device.smartweatherStationTile", title: "Weather...", multiple: true, required: false
 	}
@@ -223,7 +229,7 @@ def parse(String description) {
 }
 
 def installed() {
-	runPeriodically(3600, poll)
+	runEvery5Minutes(poll)
 }
 
 def uninstalled() {
@@ -238,7 +244,7 @@ def poll() {
 	def obs = get("conditions")?.current_observation
 	if (obs) {
         log.debug "obs --> ${obs}"
-        def now = new Date().format('hh:mm:ss M.d.yyyy',location.timeZone)
+        def now = new Date().format('HH:mm:ss M.d.yyyy',location.timeZone)
         sendEvent(name:"lastSTupdate", value: now)
         
 		def weatherIcon = obs.icon_url.split("/")[-1].split("\\.")[0]
@@ -376,14 +382,18 @@ def poll() {
 		def sunriseDate = ltf.parse("${today} ${a.sunrise.hour}:${a.sunrise.minute}")
 		def sunsetDate = ltf.parse("${today} ${a.sunset.hour}:${a.sunset.minute}")
 
-        def tf = new java.text.SimpleDateFormat("h:mm a")
+        def tf = new java.text.SimpleDateFormat("HH:mm")
         tf.setTimeZone(TimeZone.getTimeZone("GMT${obs.local_tz_offset}"))
         def localSunrise = "${tf.format(sunriseDate)}"
         def localSunset = "${tf.format(sunsetDate)}"
         send(name: "localSunrise", value: localSunrise, descriptionText: "Sunrise today is at $localSunrise")
         send(name: "localSunset", value: localSunset, descriptionText: "Sunset today at is $localSunset")
 
-		send(name: "illuminance", value: estimateLux(sunriseDate, sunsetDate, weatherIcon))
+		if (!illum_calc || (illum_calc=="calc_time")) {
+			send(name: "illuminance", value: estimateLux(sunriseDate, sunsetDate, weatherIcon))
+		} else {
+			send(name: "illuminance", value: obs.solarradiation*127.6)
+		}
 
 		// Forecast
 		def f = get("forecast")
