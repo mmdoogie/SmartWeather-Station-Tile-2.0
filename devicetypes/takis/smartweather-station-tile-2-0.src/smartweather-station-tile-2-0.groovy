@@ -392,7 +392,7 @@ def poll() {
 		if (!illum_calc || (illum_calc=="calc_time")) {
 			send(name: "illuminance", value: estimateLux(sunriseDate, sunsetDate, weatherIcon))
 		} else {
-			send(name: "illuminance", value: obs.solarradiation*127.6)
+			send(name: "illuminance", value: obs.solarradiation.toFloat()*126.7)
 		}
 
 		// Forecast
